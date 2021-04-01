@@ -1,0 +1,408 @@
+---
+title: "Who is likely to click the ad"
+author: "QA"
+date: "3/27/2021"
+output: pdf_document
+---
+
+## Defining the Research Question
+
+> Can one identify which individuals are most likely to click on a site.
+
+### Metric for Success
+> Identifying factors that are likely to influence whether a person would click on the ads on the site
+
+### Context
+> A Kenyan entrepreneur has created an online cryptography course and would want to advertise it on her blog. She currently targets audiences originating from various countries. In the past, she ran ads to advertise a related course on the same blog and collected data in the process to help her identify which individuals are most likely to click on her ads.
+
+### Experimentaal Design
+1. Load the data
+2. Data Cleaning
+3. Univariate Analysis
+4. Bivariate Analysis
+5. Recommendation
+
+### Appropriateness of the Data
+> The data available was not sufficient. More features should be added
+
+##1. Loading the Data and the Libraries
+### Libraries
+```{r}
+library(data.table)
+library("dplyr")
+library("ggplot2")
+library(ggstatsplot)
+library(vtree)
+```
+
+### Loading the Data
+```{r}
+df <- fread('C:\\Users\\Lenovo\\Downloads\\advertising.csv')
+```
+> Previewing the data: Top
+
+```{r df}
+head(df)
+```
+> Previwing the Bottom records
+
+```{r df}
+tail(df)
+```
+
+##2. Cleaning the Data
+
+### Standadizing the column names to lower and replacing the whitespaces with underscores
+```{r}
+names(df) <- gsub(" ","_", names(df))
+```
+```{r}
+colnames(df)
+```
+```{r}
+names(df) <- tolower(names(df))
+```
+```{r}
+colnames(df)
+```
+### Checking for Duplication of data
+```{r}
+anyDuplicated(df)
+```
+> There is NO duplicated record in this data set
+
+### Checking for presence of Missing Values
+```{r}
+colSums(is.na(df))
+```
+> There is no missing values in this data set
+
+### Exploring Outliers in the numerical columns
+
+> Checking for the data types
+
+````{r}
+str(df)
+```
+### Changing values in column 'clicked_on_ad' to YES for 1 and NO for 0
+```{r}
+df$clicked_on_ad[df$clicked_on_ad == 1] <- "YES"
+df$clicked_on_ad[df$clicked_on_ad == 0] <- "NO"
+unique(df$clicked_on_ad)
+```
+> The above encoding makes the data more descriptive
+
+### Extracting date into a new column and setting it to date
+```{r}
+df$date <- format(as.POSIXct(df$timestamp,format="%Y:%m:%d %H:%M:%S"),"%Y-%m-%d")
+df$date <- as.Date(df$date, format = "%Y-%m-%d")
+```
+
+#### Dropping the timestamp column after extracting the date
+```{r}
+df = subset(df, select = -c(timestamp) )
+```
+```{r}
+colnames(df)
+```
+### Encoding column 'male' to "YES" and "NO"
+```{r}
+df$male[df$male == 1] <- "YES"
+df$male[df$male == 0] <- "NO"
+unique(df$male)
+```
+### Checking for OUTLIERS in the numerical columns: We shall consider then univariately then compare against the predicted variable :clicked_on_ad'
+
+#### daily_time_spent_on_site
+```{r}
+boxplot.stats(df$daily_time_spent_on_site)$out
+```
+> There is no outlier in the column daily_spent_on_site
+
+
+#### age
+```{r}
+boxplot.stats(df$age)$out
+```
+> There is no outlier in the column age
+
+
+#### area_income
+```{r}
+x <- boxplot.stats(df$area_income)$out
+print(paste("Percentage of outliers: ", (length(x)/length(df$area_income)*100), "%"))
+```
+> Less than 1% of data in the area_income is considered outliers based on the IQR criterion. Dropping or imputing the outliers requires a further investigation into the datapoints. This shall be delved into during univariate analysis of the column.
+
+
+#### daily_internet_usage
+##### Uni-view
+```{r}
+x <- boxplot.stats(df$daily_internet_usage)$out
+print(paste("Percentage of outliers: ", (length(x)/length(df$daily_internet_usage)*100), "%"))
+```
+> This dataset has NO outliers
+
+
+##3. Univariate Analysis
+> Creating Summaries of the Data
+
+```{r df}
+summary(df)
+```
+> The above summary gives a shortcut to a deneral descritive stats of the various data columns. However, as will be demonstrated below we can do a step by step exploration of each data column
+
+
+### Univariate Findings
+#### COLUMN: daily_time_spent_on_site
+##### Min, Mean, Qs and Max
+```{r}
+summary(df$daily_time_spent_on_site)
+```
+##### Histogram of daily_time_spent_on_site
+```{r}
+hist(df$daily_time_spent_on_site,
+  xlab = "Daily Time Spent on Site",
+  main = "Histogram of Daily Time Spent on Site",
+  breaks = 15)
+) # set number of bins
+```
+##### Boxplot of daily_time_spent_on_site
+```{r}
+boxplot(df$daily_time_spent_on_site, ylab = "Minutes", main = "Boxplot of Daily Time Spent on Site")
+```
+#### COLUMN: AGE
+##### Min, Mean, Qs and Max
+```{r}
+summary(df$age)
+```
+##### Histogram of age
+```{r}
+hist(df$age,
+  xlab = "Age",
+  main = "Histogram of the Age",
+  breaks = 9,)
+) # set number of bins
+```
+##### Boxplot of age
+```{r}
+boxplot(df$age, ylab = "Age", main = "Boxplot of Age")
+```
+
+#### COLUMN: area_income
+##### Min, Mean, Qs and Max
+```{r}
+summary(df$area_income)
+```
+##### Histogram of Area Income
+```{r}
+hist(df$area_income,
+  xlab = "Area Income",
+  main = "Histogram of the Area Income",
+  breaks = 10)
+) # set number of bins
+```
+##### Boxplot of Area Income
+```{r}
+boxplot(df$area_income, ylab = "Area Income", main = "Boxplot of Area Income")
+```
+> There are some areas with extremely low incomes that have been classified as outliers
+
+
+##### Exploring the OUTLIERS in the area_income column. 
+> We are going to extraxt the specific rows that contain the outliers for further investigation
+
+```{r}
+outlier_income <- boxplot.stats(df$area_income)$out
+outlier_income_ind <- which(df$area_income %in% c(outlier_income))
+outlier_income_ind
+```
+> Using the above positions we shall then go ahead to extract the entire row entries
+
+```{r}
+df[outlier_income_ind, ]
+```
+> Analysis of these rows whose area_income values appear as outliers indicate that all of these had the ad_topic_line clicked on. Notably, they are for Belize, Algeria, Azerbaijan, Tajikistan, Labanon, El Salcador, Jersey and Luxembourg. It would be well to consider dropping these values. 
+
+##### Dropping the outlier values
+```{r}
+# This has been done using the dplyr library
+df <- df %>% slice(-c(outlier_income_ind))
+boxplot(df$area_income)
+```
+> After dropping the earlier 8 outliers our new boxplot introduces two new outliers that were not in the ealier list of outliers
+
+#### COLUMN: daily_internet_usage
+##### Min, Mean, Qs and Max
+```{r}
+summary(df$daily_internet_usage)
+```
+##### Histogram of Area Income
+```{r}
+hist(df$daily_internet_usage,
+  xlab = "Internet Usage",
+  main = "Histogram of the Daily Internet Usage",
+  breaks = 20)
+) # set number of bins
+```
+##### Boxplot of Daily Internet Usage
+```{r}
+boxplot(df$daily_internet_usage, ylab = "Area Income", main = "Boxplot of Daily Internet Usage")
+```
+
+#### COLUMN: ad_topic_line
+##### Frequency Table
+```{r}
+as.data.frame(table(df$ad_topic_line))
+```
+> There are 992 unique as_topic_lines out of the 999 rows.
+
+#### COLUMN: city
+##### Frequency Table
+```{r}
+as.data.frame(table(df$city))
+```
+> The cities are equally 961 cities. This implies that the cities apper once in almost all the cases
+
+#### COLUMN: male
+##### Frequency Table
+```{r}
+as.data.frame(table(df$male))
+```
+##### Visualizing the above information
+```{r}
+# Using the vtree library
+vtree(df, "male")
+```
+> 52% of the visitors of the sight were from the female gender whreas 48% were of the male gender
+
+#### COLUMN: country
+##### Frequency Table
+```{r}
+# This has been done using the dplyr library
+country_summary <- df %>%
+  count(country, sort = TRUE)
+
+country_summary
+```
+
+> Czech Republic and France produced the most visitors to the site
+
+#### COLUMN: clicked_on_ad
+##### Frequency Table
+```{r}
+clicked_on_add_summary <- df %>%
+  count(clicked_on_ad, sort = TRUE)
+
+clicked_on_add_summary
+```
+##### Visualizing the above information
+```{r}
+# Using the vtree library
+vtree(df, "clicked_on_ad")
+```
+> Almost 50% (49.60%) of the site visitors clicked on the adds
+
+
+##4. Bivariate Analysis
+> Here we are going to compare other features with whether the individual clicked on the ad
+
+### Correlational Analysis
+```{r}
+num_cols <- unlist(lapply(df, is.numeric)) # Identifying numeric columns
+num_cols
+```
+```{r}
+data_num <- subset(df, select=num_cols)                       # Subset numeric columns of data
+data_num
+```
+
+```{r}
+# Correlation Matrix
+cor(data_num)
+```
+> Visualizing the above result
+
+```{r}
+ggcorrmat(data_num)
+```
+* *Observations*
++ There is a *strong positive* correlation between daily_internet_usage and daily_time_spent_on_site
++ There is a moderate positive correlation between daily_time_spent_on_site and area_income, daily_internet_usage and area_income
++ There is a moderate negative correlation between age and daily_time_spent_on_site, daily_internet_usage and age
++ There is a weak negative correlation between area_income and age
+
+### Covariance Analysis
+#### 
+```{r}
+for (i in colnames(data_num)){
+  print(paste(toupper(i)))
+  for(j in colnames(data_num)){
+    print(paste("Covariance between",i,":",j,cov(df$daily_time_spent_on_site,df[[j]])))
+  }
+  print(paste("*******************************"))
+}
+
+```
+* *Observations*
++ There is a very high *positive* covariance between area_income and daily_time_spent_on_site, age and daily_internet_usage
++ There is a *negative* covariance between age and daily_time_spent_on_site, area_income and daily_internet_usage
+
+### Scatter Plots
+```{r}
+for (i in colnames(data_num)){
+  for(j in colnames(data_num)){
+    plot(data_num[[i]], data_num[[j]], xlab= i, ylab=j)
+  }
+}
+```
+* *Observations*
++ The graphs do not indicate linear relationship between different features.
+
+### Incoporating some categorical variables
+#### Clicked vs Daily Times
+```{r}
+# Plot the chart.
+boxplot(daily_time_spent_on_site ~ clicked_on_ad, data = df, xlab = "Clicked",
+   ylab = "Time", main = "Time Spent on Site")
+```
+> On average those who spend shorter times on the internet are likely to click on the ad
+
+#### Clicked vs Age
+```{r}
+# Plot the chart.
+boxplot(age ~ clicked_on_ad, data = df, xlab = "Clicked",
+   ylab = "Age", main = "Age vs Clicking")
+```
+> On average older people click ads as compared to younger people
+
+#### Clicked vs Area Income
+```{r}
+# Plot the chart.
+boxplot(area_income ~ clicked_on_ad, data = df, xlab = "Clicked",
+   ylab = "Area Income", main = "Area Income vs Clicking")
+```
+> Those from high income areas are less likely to click on the ad
+
+#### Clicked vs Daily Internet Usage
+```{r}
+# Plot the chart.
+boxplot(daily_internet_usage ~ clicked_on_ad, data = df, xlab = "Clicked",
+   ylab = "Daily Internet Usage", main = "Daily Internet Usage vs Clicking")
+```
+> Those who spend less time on the internet are more likely click on the ad
+
+#### Clicked vs Male
+```{r}
+vtree(df, c("male", "clicked_on_ad"), 
+   fillcolor = c( male = "#e7d4e8", clicked_on_ad = "#99d8c9"))
+```
+* *Observations*
++ Most of the visitors to the site were Female
++ Females are more likely to click on the ad than males
+
+##5. Recommendations
+* Focus on people who spend shorter time on the internet since they are more likely to click on the add
+* Focus on females as they have higher probabilities to click on the ads
+* Focus on the older population as they are more likely to click on the ads
+* Those from averagely low income areas are likely to click on the ad than those from rich neighborhoods
