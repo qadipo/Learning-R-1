@@ -25,77 +25,93 @@ output: pdf_document
 ### Appropriateness of the Data
 > The data available was not sufficient. More features should be added
 
-##1. Loading the Data and the Libraries
-### Libraries
+Loading the Data and the Libraries
 ```{r}
 library(data.table)
 library("dplyr")
 library("ggplot2")
 library(ggstatsplot)
 library(vtree)
+library(Hmisc)
+library(moments)
+library(modeest)
 ```
 
-### Loading the Data
+### 1. Loading the Data
 ```{r}
 df <- fread('C:\\Users\\Lenovo\\Downloads\\advertising.csv')
 ```
-> Previewing the data: Top
+
 
 ```{r df}
+# Previewing the data: Top
 head(df)
 ```
-> Previwing the Bottom records
 
 ```{r df}
+# Previwing the Bottom records
 tail(df)
 ```
 
-##2. Cleaning the Data
+## 2. Cleaning the Data
 
-### Standadizing the column names to lower and replacing the whitespaces with underscores
+#### Standardizing column name
+
+> Changing columns to lower and replacing the whitespaces with underscore
+
 ```{r}
+# Replacing the whitespaces with underscore
 names(df) <- gsub(" ","_", names(df))
 ```
 ```{r}
+# Viewing the column names
 colnames(df)
 ```
 ```{r}
+# Changing the column names to lower case
 names(df) <- tolower(names(df))
 ```
 ```{r}
 colnames(df)
 ```
-### Checking for Duplication of data
+### Duplicate Data
 ```{r}
+# Checking for the presence of duplicate values
 anyDuplicated(df)
 ```
-> There is NO duplicated record in this data set
+> There are NO duplicated records in this data set
 
-### Checking for presence of Missing Values
+### Missing Values
 ```{r}
+# Checking for the presence of missing values
 colSums(is.na(df))
 ```
-> There is no missing values in this data set
+> There are NO missing values in this data set
 
 ### Exploring Outliers in the numerical columns
 
-> Checking for the data types
-
 ````{r}
+# Checking for the data types
 str(df)
 ```
-### Changing values in column 'clicked_on_ad' to YES for 1 and NO for 0
+### Encoding clicked_on_ad column
 ```{r}
+# Encoding 0 to NO and  1 to YES
 df$clicked_on_ad[df$clicked_on_ad == 1] <- "YES"
 df$clicked_on_ad[df$clicked_on_ad == 0] <- "NO"
 unique(df$clicked_on_ad)
 ```
-> The above encoding makes the data more descriptive
 
-### Extracting date into a new column and setting it to date
+### Feature Extraction
 ```{r}
-df$date <- format(as.POSIXct(df$timestamp,format="%Y:%m:%d %H:%M:%S"),"%Y-%m-%d")
+# Creating a date column
+df$date <- format(as.POSIXct.Date(df$timestamp,format="%Y:%m:%d %H:%M:%S"),"%Y-%m-%d")
 df$date <- as.Date(df$date, format = "%Y-%m-%d")
+```
+```{r}
+# Creating a hour column
+df$hour <- format(as.POSIXct(df$timestamp, format="%Y:%m:%d %H:%M:%S"),"%H")
+df$hour <- as.integer(df$hour) 
 ```
 
 #### Dropping the timestamp column after extracting the date
@@ -103,40 +119,46 @@ df$date <- as.Date(df$date, format = "%Y-%m-%d")
 df = subset(df, select = -c(timestamp) )
 ```
 ```{r}
-colnames(df)
+str(df)
 ```
-### Encoding column 'male' to "YES" and "NO"
+### Encoding the male column
 ```{r}
+# Encoding 0 with NO and 1 with YES
 df$male[df$male == 1] <- "YES"
 df$male[df$male == 0] <- "NO"
 unique(df$male)
 ```
-### Checking for OUTLIERS in the numerical columns: We shall consider then univariately then compare against the predicted variable :clicked_on_ad'
+### OUTLIERS
 
 #### daily_time_spent_on_site
 ```{r}
+# Checking for potential outliers in the daily_time_spent_on_site column
 boxplot.stats(df$daily_time_spent_on_site)$out
 ```
 > There is no outlier in the column daily_spent_on_site
 
-
 #### age
 ```{r}
+# Checking for potential outliers in the age column
 boxplot.stats(df$age)$out
 ```
 > There is no outlier in the column age
 
-
 #### area_income
 ```{r}
+boxplot.stats(df$area_income)$out
+```
+> This column has outliers
+
+```{r}
+# Exploring the extent of the outliers
 x <- boxplot.stats(df$area_income)$out
 print(paste("Percentage of outliers: ", (length(x)/length(df$area_income)*100), "%"))
 ```
-> Less than 1% of data in the area_income is considered outliers based on the IQR criterion. Dropping or imputing the outliers requires a further investigation into the datapoints. This shall be delved into during univariate analysis of the column.
+> Less than 1% of data in the area_income is considered outliers based on the IQR criterion. Dropping or imputing the outliers requires a further investigation into the data points. This shall be delved into during univariate analysis of the column.
 
 
 #### daily_internet_usage
-##### Uni-view
 ```{r}
 x <- boxplot.stats(df$daily_internet_usage)$out
 print(paste("Percentage of outliers: ", (length(x)/length(df$daily_internet_usage)*100), "%"))
@@ -144,21 +166,32 @@ print(paste("Percentage of outliers: ", (length(x)/length(df$daily_internet_usag
 > This dataset has NO outliers
 
 
-##3. Univariate Analysis
+## 3. Univariate Analysis
 > Creating Summaries of the Data
 
 ```{r df}
-summary(df)
+describe(df)
 ```
 > The above summary gives a shortcut to a deneral descritive stats of the various data columns. However, as will be demonstrated below we can do a step by step exploration of each data column
 
 
-### Univariate Findings
 #### COLUMN: daily_time_spent_on_site
 ##### Min, Mean, Qs and Max
 ```{r}
 summary(df$daily_time_spent_on_site)
 ```
+
+##### Mode, Skweness and Kurtosis
+```{r}
+print(paste("Mode: ", mfv(df$daily_time_spent_on_site)))
+print(paste("Skewness: ",skewness(df$daily_time_spent_on_site)))
+print(paste("Kurtosis: ", kurtosis(df$daily_time_spent_on_site)))
+```
+*Obervations*
+1. Multi-modal
+2. Negatively skewed
+3. Leptokurtic
+
 ##### Histogram of daily_time_spent_on_site
 ```{r}
 hist(df$daily_time_spent_on_site,
@@ -176,6 +209,17 @@ boxplot(df$daily_time_spent_on_site, ylab = "Minutes", main = "Boxplot of Daily 
 ```{r}
 summary(df$age)
 ```
+##### Mode, Skewness and Kurosis
+```{r}
+print(paste("Mode: ", mfv(df$age)))
+print(paste("Skewness: ",skewness(df$age)))
+print(paste("Kurtosis: ", kurtosis(df$age)))
+```
+*Observation*
+1. the data could be multimodal
+2. It is positively skewed
+3. It is leptokurtic
+
 ##### Histogram of age
 ```{r}
 hist(df$age,
@@ -194,6 +238,16 @@ boxplot(df$age, ylab = "Age", main = "Boxplot of Age")
 ```{r}
 summary(df$area_income)
 ```
+##### Mode, Skewness and Kurosis
+```{r}
+# print(paste("Mode: ", mfv(df$area_income))) # All the values are unique
+print(paste("Skewness: ", skewness(df$area_income)))
+print(paste("Kurtosis: ", kurtosis(df$area_income)))
+```
+*Observations*
+1. The data is skewed negatively'
+2. The data is leptokurtic
+
 ##### Histogram of Area Income
 ```{r}
 hist(df$area_income,
@@ -237,6 +291,17 @@ boxplot(df$area_income)
 ```{r}
 summary(df$daily_internet_usage)
 ```
+##### Mode, Skewness and Kurosis
+```{r}
+print(paste("Mode: ", mfv(df$daily_internet_usage)))
+print(paste("Skewness: ", skewness(df$daily_internet_usage)))
+print(paste("Kurtosis: ", kurtosis(df$daily_internet_usage)))
+```
+*Observations*
+1. This column is multi-modal
+2. The data is negatively skewed
+3. The data is leptokurtic
+
 ##### Histogram of Area Income
 ```{r}
 hist(df$daily_internet_usage,
@@ -249,18 +314,50 @@ hist(df$daily_internet_usage,
 ```{r}
 boxplot(df$daily_internet_usage, ylab = "Area Income", main = "Boxplot of Daily Internet Usage")
 ```
+#### COLUMN: hour
+##### Min, Mean, Qs and Max
+```{r}
+summary(df$hour)
+```
+
+##### Mode, Skweness and Kurtosis
+```{r}
+print(paste("Mode: ", mfv(df$hour)))
+print(paste("Skewness: ",skewness(df$hour)))
+print(paste("Kurtosis: ", kurtosis(df$hour)))
+```
+*Obervations*
+1. Multi-modal
+2. Negatively skewed
+3. Leptokurtic
+
+##### Histogram of hour
+```{r}
+ggplot(df, aes(hour)) +
+  geom_bar(fill = "#0073C2FF")
+)
+```
+> The most popular hour of the day visitting the site is the 7 hour
 
 #### COLUMN: ad_topic_line
 ##### Frequency Table
 ```{r}
-as.data.frame(table(df$ad_topic_line))
+# This has been done using the dplyr library
+topic_line_summary <- df %>%
+  count(ad_topic_line, sort = TRUE)
+
+topic_line_summary[1:10]
 ```
-> There are 992 unique as_topic_lines out of the 999 rows.
+> The ad topic lines are unique.
 
 #### COLUMN: city
 ##### Frequency Table
 ```{r}
-as.data.frame(table(df$city))
+# This has been done using the dplyr library
+city_line_summary <- df %>%
+  count(city, sort = TRUE)
+
+city_line_summary[1:10]
 ```
 > The cities are equally 961 cities. This implies that the cities apper once in almost all the cases
 
@@ -283,7 +380,7 @@ vtree(df, "male")
 country_summary <- df %>%
   count(country, sort = TRUE)
 
-country_summary
+country_summary[1:10]
 ```
 
 > Czech Republic and France produced the most visitors to the site
@@ -304,7 +401,7 @@ vtree(df, "clicked_on_ad")
 > Almost 50% (49.60%) of the site visitors clicked on the adds
 
 
-##4. Bivariate Analysis
+## 4. Bivariate Analysis
 > Here we are going to compare other features with whether the individual clicked on the ad
 
 ### Correlational Analysis
@@ -314,7 +411,7 @@ num_cols
 ```
 ```{r}
 data_num <- subset(df, select=num_cols)                       # Subset numeric columns of data
-data_num
+data_num[1:10]
 ```
 
 ```{r}
@@ -327,10 +424,10 @@ cor(data_num)
 ggcorrmat(data_num)
 ```
 * *Observations*
-+ There is a *strong positive* correlation between daily_internet_usage and daily_time_spent_on_site
-+ There is a moderate positive correlation between daily_time_spent_on_site and area_income, daily_internet_usage and area_income
-+ There is a moderate negative correlation between age and daily_time_spent_on_site, daily_internet_usage and age
-+ There is a weak negative correlation between area_income and age
+1. There is a *strong positive* correlation between daily_internet_usage and daily_time_spent_on_site
+2. There is a moderate positive correlation between daily_time_spent_on_site and area_income, daily_internet_usage and area_income
+3. There is a moderate negative correlation between age and daily_time_spent_on_site, daily_internet_usage and age
+4. There is a weak negative correlation between area_income and age
 
 ### Covariance Analysis
 #### 
@@ -345,8 +442,8 @@ for (i in colnames(data_num)){
 
 ```
 * *Observations*
-+ There is a very high *positive* covariance between area_income and daily_time_spent_on_site, age and daily_internet_usage
-+ There is a *negative* covariance between age and daily_time_spent_on_site, area_income and daily_internet_usage
+1. There is a very high *positive* covariance between area_income and daily_time_spent_on_site, age and daily_internet_usage
+2. There is a *negative* covariance between age and daily_time_spent_on_site, area_income and daily_internet_usage
 
 ### Scatter Plots
 ```{r}
@@ -357,7 +454,7 @@ for (i in colnames(data_num)){
 }
 ```
 * *Observations*
-+ The graphs do not indicate linear relationship between different features.
+> The graphs do not indicate linear relationship between different features.
 
 ### Incoporating some categorical variables
 #### Clicked vs Daily Times
@@ -398,11 +495,10 @@ vtree(df, c("male", "clicked_on_ad"),
    fillcolor = c( male = "#e7d4e8", clicked_on_ad = "#99d8c9"))
 ```
 * *Observations*
-+ Most of the visitors to the site were Female
-+ Females are more likely to click on the ad than males
+1. Most of the visitors to the site were Female
+2. Females are more likely to click on the ad than males
 
-##5. Recommendations
-* Focus on people who spend shorter time on the internet since they are more likely to click on the add
-* Focus on females as they have higher probabilities to click on the ads
-* Focus on the older population as they are more likely to click on the ads
-* Those from averagely low income areas are likely to click on the ad than those from rich neighborhoods
+## 5. Recommendations
+
+1. The most popular hour of the day to run advert is 7 am
+2. Targeting the female audience will lead to increased clicks
